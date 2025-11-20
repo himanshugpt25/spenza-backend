@@ -1,21 +1,28 @@
 import { QueryResult } from "pg";
 import { BaseRepository } from "../../shared/base/base.repository";
 import { PostgresDatabase } from "../../config/database";
-import { RegisterDto } from "./auth.schema";
 import { AppError } from "../../shared/utils/appError";
-
-export interface IUserRepository {
-  createUser(payload: RegisterDto & { passwordHash: string }): Promise<UserRecord>;
-  findByEmail(email: string): Promise<UserRecord | null>;
-}
 
 export interface UserRecord {
   id: string;
   email: string;
   password_hash: string;
-  first_name: string;
-  last_name: string;
+  refresh_token_hash: string | null;
   created_at: Date;
+}
+
+export interface CreateUserInput {
+  email: string;
+  passwordHash: string;
+}
+
+export interface IUserRepository {
+  create(payload: CreateUserInput): Promise<UserRecord>;
+  findByEmail(email: string): Promise<UserRecord | null>;
+  updateRefreshTokenHash(
+    userId: string,
+    refreshTokenHash: string
+  ): Promise<void>;
 }
 
 export class UserRepository extends BaseRepository implements IUserRepository {
@@ -23,20 +30,17 @@ export class UserRepository extends BaseRepository implements IUserRepository {
     super(db);
   }
 
-  async createUser(payload: RegisterDto & { passwordHash: string }): Promise<UserRecord> {
+  async create(payload: CreateUserInput): Promise<UserRecord> {
     const query = `
-      INSERT INTO users (email, password_hash, first_name, last_name)
-      VALUES ($1, $2, $3, $4)
-      RETURNING id, email, password_hash, first_name, last_name, created_at;
+      INSERT INTO users (email, password_hash)
+      VALUES ($1, $2)
+      RETURNING id, email, password_hash, refresh_token_hash, created_at;
     `;
-    const values = [
+
+    const result: QueryResult<UserRecord> = await this.query(query, [
       payload.email,
       payload.passwordHash,
-      payload.firstName,
-      payload.lastName,
-    ];
-
-    const result: QueryResult<UserRecord> = await this.query(query, values);
+    ]);
     const user = result.rows[0];
     if (!user) {
       throw new AppError("Failed to create user", 500);
@@ -46,7 +50,7 @@ export class UserRepository extends BaseRepository implements IUserRepository {
 
   async findByEmail(email: string): Promise<UserRecord | null> {
     const query = `
-      SELECT id, email, password_hash, first_name, last_name, created_at
+      SELECT id, email, password_hash, refresh_token_hash, created_at
       FROM users
       WHERE email = $1
       LIMIT 1;
@@ -54,5 +58,18 @@ export class UserRepository extends BaseRepository implements IUserRepository {
     const result: QueryResult<UserRecord> = await this.query(query, [email]);
     return result.rows[0] ?? null;
   }
-}
 
+  async updateRefreshTokenHash(
+    userId: string,
+    refreshTokenHash: string
+  ): Promise<void> {
+    await this.query(
+      `
+        UPDATE users
+        SET refresh_token_hash = $2
+        WHERE id = $1
+      `,
+      [userId, refreshTokenHash]
+    );
+  }
+}

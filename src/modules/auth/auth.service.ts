@@ -1,13 +1,16 @@
-import { createHash } from "crypto";
+import bcrypt from "bcrypt";
 import { AppError } from "../../shared/utils/appError";
 import { IUserRepository, UserRecord } from "./auth.repository";
 import { LoginDto, RegisterDto } from "./auth.schema";
+import { tokenManager } from "../../shared/utils/tokenManager";
+
+const SALT_ROUNDS = 10;
 
 export interface AuthResponse {
   userId: string;
   email: string;
-  firstName: string;
-  lastName: string;
+  accessToken: string;
+  refreshToken: string;
 }
 
 export interface IAuthService {
@@ -24,10 +27,13 @@ export class AuthService implements IAuthService {
       throw new AppError("Email already registered", 409);
     }
 
-    const passwordHash = this.hashPassword(payload.password);
-    const user = await this.userRepository.createUser({ ...payload, passwordHash });
+    const passwordHash = await bcrypt.hash(payload.password, SALT_ROUNDS);
+    const user = await this.userRepository.create({
+      email: payload.email,
+      passwordHash,
+    });
 
-    return this.toAuthResponse(user);
+    return this.issueTokens(user);
   }
 
   async login(payload: LoginDto): Promise<AuthResponse> {
@@ -36,25 +42,25 @@ export class AuthService implements IAuthService {
       throw new AppError("Invalid credentials", 401);
     }
 
-    const isMatch = this.hashPassword(payload.password) === user.password_hash;
+    const isMatch = await bcrypt.compare(payload.password, user.password_hash);
     if (!isMatch) {
       throw new AppError("Invalid credentials", 401);
     }
 
-    return this.toAuthResponse(user);
+    return this.issueTokens(user);
   }
 
-  private hashPassword(raw: string): string {
-    return createHash("sha256").update(raw).digest("hex");
-  }
+  private async issueTokens(user: UserRecord): Promise<AuthResponse> {
+    const accessToken = tokenManager.signAccessToken(user.id);
+    const refreshToken = tokenManager.signRefreshToken(user.id);
+    const refreshHash = await bcrypt.hash(refreshToken, SALT_ROUNDS);
+    await this.userRepository.updateRefreshTokenHash(user.id, refreshHash);
 
-  private toAuthResponse(user: UserRecord): AuthResponse {
     return {
       userId: user.id,
       email: user.email,
-      firstName: user.first_name,
-      lastName: user.last_name,
+      accessToken,
+      refreshToken,
     };
   }
 }
-
