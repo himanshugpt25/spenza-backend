@@ -1,35 +1,27 @@
-import { Request, Response } from "express";
-import {
-  CreateSubscriptionDto,
-  SubscriptionIdParams,
-  UpdateStatusDto,
-} from "./sub.schema";
+import { Response, RequestHandler } from "express";
+import { CreateSubscriptionDto } from "./sub.schema";
 import { ISubscriptionService } from "./sub.service";
 import { formatSuccess } from "../../shared/utils/responseFormatter";
+import { AuthenticatedRequest } from "../../shared/types/express";
 
 export class SubscriptionController {
   constructor(private readonly subscriptionService: ISubscriptionService) {}
 
-  create = async (req: Request, res: Response) => {
+  addSubscription: RequestHandler = async (req, res) => {
+    const typedReq = req as AuthenticatedRequest;
     const payload = req.body as CreateSubscriptionDto;
-    const result = await this.subscriptionService.create(payload);
+    const result = await this.subscriptionService.addSubscription(
+      typedReq.user.id,
+      payload
+    );
     res.status(201).json(formatSuccess(result, "Subscription created"));
   };
 
-  getById = async (req: Request, res: Response) => {
-    const { subscriptionId } = req.params as SubscriptionIdParams;
-    const result = await this.subscriptionService.getById(subscriptionId);
+  listSubscriptions: RequestHandler = async (req, res) => {
+    const typedReq = req as AuthenticatedRequest;
+    const result = await this.subscriptionService.listSubscriptions(
+      typedReq.user.id
+    );
     res.status(200).json(formatSuccess(result));
   };
-
-  toggleStatus = async (req: Request, res: Response) => {
-    const { subscriptionId } = req.params as SubscriptionIdParams;
-    const { isActive } = req.body as UpdateStatusDto;
-    const result = await this.subscriptionService.toggleStatus(
-      subscriptionId,
-      isActive,
-    );
-    res.status(200).json(formatSuccess(result, "Subscription updated"));
-  };
 }
-

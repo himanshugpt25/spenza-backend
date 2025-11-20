@@ -6,16 +6,28 @@ import { AppError } from "../../shared/utils/appError";
 
 export interface SubscriptionRecord {
   id: string;
-  name: string;
-  callback_url: string;
+  user_id: string;
+  target_url: string;
   is_active: boolean;
+  metadata: {
+    name: string;
+    description?: string;
+  };
   created_at: Date;
 }
 
+export interface CreateSubscriptionInput {
+  userId: string;
+  targetUrl: string;
+  isActive: boolean;
+  name: string;
+  description?: string | undefined;
+}
+
 export interface ISubscriptionRepository {
-  create(payload: CreateSubscriptionDto): Promise<SubscriptionRecord>;
+  create(payload: CreateSubscriptionInput): Promise<SubscriptionRecord>;
+  findByUser(userId: string): Promise<SubscriptionRecord[]>;
   findById(id: string): Promise<SubscriptionRecord | null>;
-  updateStatus(id: string, isActive: boolean): Promise<SubscriptionRecord | null>;
 }
 
 export class SubscriptionRepository
@@ -26,17 +38,21 @@ export class SubscriptionRepository
     super(db);
   }
 
-  async create(payload: CreateSubscriptionDto): Promise<SubscriptionRecord> {
+  async create(payload: CreateSubscriptionInput): Promise<SubscriptionRecord> {
     const query = `
-      INSERT INTO subscriptions (name, callback_url, is_active)
-      VALUES ($1, $2, $3)
-      RETURNING id, name, callback_url, is_active, created_at;
+      INSERT INTO subscriptions (user_id, target_url, is_active, metadata)
+      VALUES ($1, $2, $3, $4)
+      RETURNING id, user_id, target_url, is_active, metadata, created_at;
     `;
-    const values = [payload.name, payload.callbackUrl, payload.isActive];
-    const result: QueryResult<SubscriptionRecord> = await this.query(
-      query,
-      values,
-    );
+    const result: QueryResult<SubscriptionRecord> = await this.query(query, [
+      payload.userId,
+      payload.targetUrl,
+      payload.isActive,
+      {
+        name: payload.name,
+        description: payload.description,
+      },
+    ]);
     const subscription = result.rows[0];
     if (!subscription) {
       throw new AppError("Failed to create subscription", 500);
@@ -44,9 +60,22 @@ export class SubscriptionRepository
     return subscription;
   }
 
+  async findByUser(userId: string): Promise<SubscriptionRecord[]> {
+    const query = `
+      SELECT id, user_id, target_url, is_active, metadata, created_at
+      FROM subscriptions
+      WHERE user_id = $1
+      ORDER BY created_at DESC;
+    `;
+    const result: QueryResult<SubscriptionRecord> = await this.query(query, [
+      userId,
+    ]);
+    return result.rows;
+  }
+
   async findById(id: string): Promise<SubscriptionRecord | null> {
     const query = `
-      SELECT id, name, callback_url, is_active, created_at
+      SELECT id, user_id, target_url, is_active, metadata, created_at
       FROM subscriptions
       WHERE id = $1
       LIMIT 1;
@@ -56,22 +85,4 @@ export class SubscriptionRepository
     ]);
     return result.rows[0] ?? null;
   }
-
-  async updateStatus(
-    id: string,
-    isActive: boolean,
-  ): Promise<SubscriptionRecord | null> {
-    const query = `
-      UPDATE subscriptions
-      SET is_active = $2
-      WHERE id = $1
-      RETURNING id, name, callback_url, is_active, created_at;
-    `;
-    const result: QueryResult<SubscriptionRecord> = await this.query(query, [
-      id,
-      isActive,
-    ]);
-    return result.rows[0] ?? null;
-  }
 }
-

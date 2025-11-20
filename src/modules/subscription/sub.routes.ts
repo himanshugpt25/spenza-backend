@@ -1,30 +1,21 @@
 import { Router } from "express";
 import { SubscriptionController } from "./sub.controller";
 import { validateRequest } from "../../shared/middleware/requestValidator";
-import {
-  CreateSubscriptionSchema,
-  SubscriptionIdSchema,
-  UpdateStatusSchema,
-} from "./sub.schema";
+import { CreateSubscriptionSchema } from "./sub.schema";
+import { authenticate } from "../../shared/middleware/authMiddleware";
 
 export const createSubscriptionRouter = (
-  controller: SubscriptionController,
+  controller: SubscriptionController
 ): Router => {
   const router = Router();
 
-  router.post("/", validateRequest(CreateSubscriptionSchema), controller.create);
-  router.get(
-    "/:subscriptionId",
-    validateRequest(SubscriptionIdSchema, "params"),
-    controller.getById,
+  router.post(
+    "/",
+    authenticate,
+    validateRequest(CreateSubscriptionSchema),
+    controller.addSubscription
   );
-  router.patch(
-    "/:subscriptionId/status",
-    validateRequest(SubscriptionIdSchema, "params"),
-    validateRequest(UpdateStatusSchema),
-    controller.toggleStatus,
-  );
+  router.get("/", authenticate, controller.listSubscriptions);
 
   return router;
 };
-
