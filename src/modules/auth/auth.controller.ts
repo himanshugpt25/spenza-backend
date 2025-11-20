@@ -6,7 +6,7 @@ import { formatSuccess } from "../../shared/utils/responseFormatter";
 export class AuthController {
   constructor(private readonly authService: IAuthService) {}
 
-  register = async (req: Request, res: Response) => {
+  signup = async (req: Request, res: Response) => {
     const payload = req.body as RegisterDto;
     const result = await this.authService.register(payload);
     res.status(201).json(formatSuccess(result, "User registered"));
@@ -18,4 +18,3 @@ export class AuthController {
     res.status(200).json(formatSuccess(result, "Authenticated"));
   };
 }
-

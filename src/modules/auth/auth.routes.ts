@@ -6,14 +6,9 @@ import { LoginSchema, RegisterSchema } from "./auth.schema";
 export const createAuthRouter = (controller: AuthController): Router => {
   const router = Router();
 
-  router.post(
-    "/register",
-    validateRequest(RegisterSchema),
-    controller.register,
-  );
+  router.post("/signup", validateRequest(RegisterSchema), controller.signup);
 
   router.post("/login", validateRequest(LoginSchema), controller.login);
 
   return router;
 };
-
