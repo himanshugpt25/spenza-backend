@@ -39,7 +39,11 @@ async function bootstrap() {
   );
   const webhookController = new WebhookController(webhookService);
 
-  const webhookWorker = new WebhookWorker(rabbit, webhookRepository);
+  const webhookWorker = new WebhookWorker(
+    rabbit,
+    webhookRepository,
+    subscriptionRepository
+  );
   webhookWorker
     .start()
     .catch((error) => logger.error({ error }, "Webhook worker failed"));

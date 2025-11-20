@@ -14,6 +14,8 @@ const envSchema = z.object({
   JWT_EXPIRES_IN: z.string().default("1h"),
   JWT_REFRESH_SECRET: z.string().min(16),
   JWT_REFRESH_EXPIRES_IN: z.string().default("7d"),
+  WEBHOOK_RETRY_TTL_MS: z.coerce.number().int().positive().default(5000),
+  WEBHOOK_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),
 });
 
 const env = envSchema.parse(process.env);

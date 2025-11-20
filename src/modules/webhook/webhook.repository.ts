@@ -4,20 +4,30 @@ import { PostgresDatabase } from "../../config/database";
 import { IngestWebhookDto } from "./webhook.schema";
 import { AppError } from "../../shared/utils/appError";
 
+export type EventStatus = "PENDING" | "PROCESSING" | "SUCCESS" | "FAILED";
+
 export interface WebhookEventRecord {
   id: string;
   subscription_id: string;
-  event_type: string;
-  payload: unknown;
-  status: "pending" | "processed" | "failed";
+  payload: IngestWebhookDto;
+  status: EventStatus;
+  attempt_count: number;
+  last_error: string | null;
   created_at: Date;
   updated_at: Date;
 }
 
 export interface IWebhookRepository {
-  createEvent(subscriptionId: string, payload: IngestWebhookDto): Promise<WebhookEventRecord>;
-  markAsProcessed(eventId: string): Promise<void>;
-  markAsFailed(eventId: string, reason: string): Promise<void>;
+  createEvent(
+    subscriptionId: string,
+    payload: IngestWebhookDto
+  ): Promise<WebhookEventRecord>;
+  updateStatus(
+    eventId: string,
+    status: EventStatus,
+    attemptCount?: number,
+    lastError?: string | null
+  ): Promise<void>;
   findById(eventId: string): Promise<WebhookEventRecord | null>;
 }
 
@@ -31,50 +41,70 @@ export class WebhookRepository
 
   async createEvent(
     subscriptionId: string,
-    payload: IngestWebhookDto,
+    payload: IngestWebhookDto
   ): Promise<WebhookEventRecord> {
     const query = `
-      INSERT INTO webhook_events (subscription_id, event_type, payload, status)
-      VALUES ($1, $2, $3, 'pending')
-      RETURNING id, subscription_id, event_type, payload, status, created_at, updated_at;
+      INSERT INTO events (subscription_id, payload, status)
+      VALUES ($1, $2, 'PENDING')
+      RETURNING id, subscription_id, payload, status, attempt_count, created_at, updated_at;
     `;
-    const values = [subscriptionId, payload.eventType, payload.payload];
+    const values = [subscriptionId, JSON.stringify(payload)];
     const result: QueryResult<WebhookEventRecord> = await this.query(
       query,
-      values,
+      values
     );
     const event = result.rows[0];
     if (!event) {
       throw new AppError("Failed to persist webhook event", 500);
     }
-    return event;
+    return this.mapPayload(event);
   }
 
-  async markAsProcessed(eventId: string): Promise<void> {
-    await this.query(
-      `UPDATE webhook_events SET status = 'processed', updated_at = NOW() WHERE id = $1`,
-      [eventId],
-    );
-  }
-
-  async markAsFailed(eventId: string, reason: string): Promise<void> {
-    await this.query(
-      `UPDATE webhook_events SET status = 'failed', updated_at = NOW(), error_reason = $2 WHERE id = $1`,
-      [eventId, reason],
-    );
+  async updateStatus(
+    eventId: string,
+    status: EventStatus,
+    attemptCount?: number,
+    lastError?: string | null
+  ): Promise<void> {
+    const query = `
+      UPDATE events
+      SET status = $2,
+          attempt_count = COALESCE($3, attempt_count),
+          last_error = $4,
+          updated_at = NOW()
+      WHERE id = $1
+    `;
+    await this.query(query, [
+      eventId,
+      status,
+      attemptCount ?? null,
+      lastError ?? null,
+    ]);
   }
 
   async findById(eventId: string): Promise<WebhookEventRecord | null> {
     const query = `
-      SELECT id, subscription_id, event_type, payload, status, created_at, updated_at
-      FROM webhook_events
+      SELECT id, subscription_id, payload, status, attempt_count, created_at, updated_at
+      FROM events
       WHERE id = $1
       LIMIT 1;
     `;
     const result: QueryResult<WebhookEventRecord> = await this.query(query, [
       eventId,
     ]);
-    return result.rows[0] ?? null;
+    const event = result.rows[0];
+    return event ? this.mapPayload(event) : null;
+  }
+
+  private mapPayload(record: WebhookEventRecord): WebhookEventRecord {
+    const rawPayload = record.payload as unknown;
+    const parsedPayload =
+      typeof rawPayload === "string"
+        ? (JSON.parse(rawPayload) as IngestWebhookDto)
+        : (rawPayload as IngestWebhookDto);
+    return {
+      ...record,
+      payload: parsedPayload,
+    };
   }
 }
-
