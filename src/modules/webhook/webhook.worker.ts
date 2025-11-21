@@ -1,10 +1,11 @@
 import axios from "axios";
 import { Channel, ConsumeMessage } from "amqplib";
 import { RabbitMQService } from "../../config/rabbitmq";
-import { IWebhookRepository } from "./webhook.repository";
+import { WebhookRepository } from "./webhook.repository";
 import { logger } from "../../shared/utils/logger";
 import { config } from "../../config/config";
 import { ISubscriptionRepository } from "../subscription/sub.repository";
+import { socketService, SocketService } from "../../shared/services/socket.service";
 
 const WEBHOOK_EXCHANGE = "webhook_exchange";
 const WEBHOOK_ROUTING_KEY = "deliver";
@@ -21,8 +22,9 @@ interface QueuePayload {
 export class WebhookWorker {
   constructor(
     private readonly rabbitMQService: RabbitMQService,
-    private readonly webhookRepository: IWebhookRepository,
-    private readonly subscriptionRepository: ISubscriptionRepository
+    private readonly webhookRepository: WebhookRepository,
+    private readonly subscriptionRepository: ISubscriptionRepository,
+    private readonly socketService: SocketService
   ) {}
 
   async start(): Promise<void> {
@@ -99,7 +101,7 @@ export class WebhookWorker {
     );
 
     try {
-      await axios.post(subscription.target_url, event.payload);
+      const response = await axios.post(subscription.target_url, event.payload);
       await this.webhookRepository.updateStatus(
         event.id,
         "SUCCESS",
@@ -107,17 +109,42 @@ export class WebhookWorker {
         null
       );
       channel.ack(message);
+
+      // Emit real-time event
+      this.socketService.emit(`subscription:${event.subscription_id}`, "event_processed", {
+        id: event.id,
+        status: "SUCCESS",
+        last_error: null,
+        created_at: event.created_at,
+        attempt_count: nextAttempt,
+      });
+
+      logger.info(
+        { eventId: event.id, subscriptionId: event.subscription_id, status: response.status },
+        "Webhook delivered successfully"
+      );
+
     } catch (error: any) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown delivery error";
+
       const hasAttemptsRemaining = nextAttempt < config.WEBHOOK_MAX_ATTEMPTS;
 
       await this.webhookRepository.updateStatus(
         event.id,
-        "FAILED",
-        nextAttempt,
+        hasAttemptsRemaining ? "PENDING" : "FAILED",
+        nextAttempt, // Keep nextAttempt as the third argument
         errorMessage
       );
+
+      // Emit real-time event for failure
+      this.socketService.emit(`subscription:${event.subscription_id}`, "event_processed", {
+        id: event.id,
+        status: hasAttemptsRemaining ? "PENDING" : "FAILED",
+        last_error: errorMessage,
+        created_at: event.created_at,
+        attempt_count: nextAttempt,
+      });
 
       if (hasAttemptsRemaining) {
         logger.warn(

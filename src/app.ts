@@ -54,10 +54,11 @@ export class App {
     this.app.use(errorHandler);
   }
 
-  listen(port: number): void {
-    this.app.listen(port, () => {
+  listen(port: number): import("http").Server {
+    const server = this.app.listen(port, () => {
       logger.info({ port }, "HTTP server listening");
     });
+    return server;
   }
 
   get instance(): Application {

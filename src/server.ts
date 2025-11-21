@@ -13,6 +13,7 @@ import { WebhookService } from "./modules/webhook/webhook.service";
 import { WebhookController } from "./modules/webhook/webhook.controller";
 import { WebhookWorker } from "./modules/webhook/webhook.worker";
 import { logger } from "./shared/utils/logger";
+import { socketService } from "./shared/services/socket.service";
 
 async function bootstrap() {
   const db = new PostgresDatabase();
@@ -45,7 +46,8 @@ async function bootstrap() {
   const webhookWorker = new WebhookWorker(
     rabbit,
     webhookRepository,
-    subscriptionRepository
+    subscriptionRepository,
+    socketService
   );
   webhookWorker
     .start()
@@ -56,7 +58,10 @@ async function bootstrap() {
     subscriptionController,
     webhookController
   );
-  app.listen(config.PORT);
+  const server = app.listen(config.PORT);
+
+  // Initialize Socket.io with the HTTP server
+  socketService.initialize(server);
 
   process.on("SIGINT", async () => {
     logger.info("Received SIGINT, shutting down gracefully");
