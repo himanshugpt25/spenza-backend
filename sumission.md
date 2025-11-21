@@ -1,6 +1,3 @@
-This `SUBMISSION.md` is designed to be the **professional face of your project**. It translates the code we wrote into a high-level architectural narrative that Senior Engineers expect to see.
-
-It uses **Mermaid.js** for the diagram (which renders automatically in GitHub/GitLab) and focuses heavily on *why* you made certain decisions.
 
 -----
 
@@ -43,42 +40,35 @@ A real-time dashboard for users to manage subscriptions and view live event logs
 
 ## 3. Architectural Diagram
 
-The following diagram illustrates the **Event Lifecycle**, from ingestion to final delivery (including the Retry Loop).
+The following diagram illustrates the **Event Lifecycle**, specifically highlighting the separation between the Synchronous Ingestion phase and the Asynchronous Delivery phase.
 
-```mermaid
-sequenceDiagram
-    participant Ext as External Source
-    participant API as Spenza API
-    participant DB as PostgreSQL
-    participant RMQ as RabbitMQ
-    participant WKR as Worker Service
-    participant Client as User Endpoint
-
-    Note over Ext, API: Phase 1: Ingestion (Sync)
-    Ext->>API: POST /hooks/:id (Payload)
-    API->>DB: INSERT INTO events (Status: PENDING)
-    
-    alt DB Write Fails
-        API-->>Ext: 500 Internal Server Error
-    else DB Write Success
-        API->>RMQ: Publish to "webhook_delivery"
-        API-->>Ext: 202 Accepted
-    end
-
-    Note over RMQ, Client: Phase 2: Delivery (Async)
-    RMQ->>WKR: Consume Message
-    WKR->>Client: POST (Webhook Payload)
-
-    alt Client returns 200 OK
-        WKR->>DB: UPDATE events SET status = COMPLETED
-        WKR->>RMQ: ACK (Remove from Queue)
-    else Client fails (500/Timeout)
-        WKR->>RMQ: NACK (Requeue to DLX)
-        RMQ->>RMQ: Wait in Retry Queue (Exponential Backoff)
-        RMQ->>WKR: Re-deliver (Attempt #2)
-    end
-````
-
+```text
++-----------------+       +------------+        +------------+       +------------+       +----------+       +------------+
+| External Source |       | Spenza API |        | PostgreSQL |       |  RabbitMQ  |       |  Worker  |       | User Server|
++-----------------+       +------------+        +------------+       +------------+       +----------+       +------------+
+         |                      |                     |                    |                   |                   |
+         |---(1) POST Event---->|                     |                    |                   |                   |
+         |                      |                     |                    |                   |                   |
+         |                      |----(2) INSERT------>|                    |                   |                   |
+         |                      |   (Status:PENDING)  |                    |                   |                   |
+         |                      |                     |                    |                   |                   |
+         |    [If DB Fails]     |                     |                    |                   |                   |
+         |<----(500 Error)------|                     |                    |                   |                   |
+         |                      |                     |                    |                   |                   |
+         |   [If DB Success]    |                     |                    |                   |                   |
+         |                      |--------------------------------(3) Publish------------------>|                   |
+         |<---(202 Accepted)----|                     |                    |                   |                   |
+         |                      |                     |                    |                   |                   |
+         |                      |                     |                    |---(4) Consume---->|                   |
+         |                      |                     |                    |                   |                   |
+         |                      |                     |                    |                   |----(5) POST------>|
+         |                      |                     |                    |                   |                   |
+         |                      |                     |                    |                   |<----(200 OK)------|
+         |                      |                     |                    |                   |                   |
+         |                      |                     |<----(6) UPDATE-----|                   |                   |
+         |                      |                     | (Status:COMPLETED) |                   |                   |
+         |                      |                     |                    |<----(7) ACK-------|                   |
+         |                      |                     |                    |  (Remove Msg)     |                   |
 -----
 
 ## 4\. Core Logic & Design Patterns
@@ -134,14 +124,6 @@ While the current system is production-grade for a V1, the following improvement
 2.  **Incoming (Third Party -\> Us):** We will implement a `ValidatorStrategy` pattern.
       * Users can configure which provider (e.g., Stripe, GitHub) is sending the data.
       * Our ingestion middleware will verify the provider's specific signature before accepting the request, preventing spoofed events.
-
-### C. Horizontal Scaling
-
-**Current State:** Single Worker instance.
-**V2 Strategy:**
-
-  * **Consumer Groups:** Deploy multiple instances of the Worker Service. RabbitMQ will automatically load-balance messages across them via Round-Robin.
-  * **Partitioning:** For extreme scale (10k+ req/sec), we would migrate from RabbitMQ to **Apache Kafka**, partitioning queues by `UserID` to ensure events for a single user remain ordered while scaling throughput.
 
 <!-- end list -->
 
