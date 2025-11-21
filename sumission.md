@@ -1,9 +1,3 @@
-
------
-
-### `SUBMISSION.md`
-
-````markdown
 # Spenza Webhook Relay System
 ### Scalable Webhook Ingestion & Delivery Engine
 
@@ -69,6 +63,7 @@ The following diagram illustrates the **Event Lifecycle**, specifically highligh
          |                      |                     | (Status:COMPLETED) |                   |                   |
          |                      |                     |                    |<----(7) ACK-------|                   |
          |                      |                     |                    |  (Remove Msg)     |                   |
+```
 -----
 
 ## 4\. Core Logic & Design Patterns
@@ -126,6 +121,3 @@ While the current system is production-grade for a V1, the following improvement
       * Our ingestion middleware will verify the provider's specific signature before accepting the request, preventing spoofed events.
 
 <!-- end list -->
-
-```
-```
