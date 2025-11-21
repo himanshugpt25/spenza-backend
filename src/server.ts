@@ -26,7 +26,10 @@ async function bootstrap() {
   const webhookRepository = new WebhookRepository(db);
 
   const authService = new AuthService(userRepository);
-  const subscriptionService = new SubscriptionService(subscriptionRepository);
+  const subscriptionService = new SubscriptionService(
+    subscriptionRepository,
+    webhookRepository
+  );
   const webhookService = new WebhookService(
     webhookRepository,
     subscriptionRepository,

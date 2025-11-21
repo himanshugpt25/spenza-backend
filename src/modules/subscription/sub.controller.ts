@@ -24,4 +24,20 @@ export class SubscriptionController {
     );
     res.status(200).json(formatSuccess(result));
   };
+
+  getEvents: RequestHandler = async (req, res) => {
+    const { id } = req.params;
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+
+    const result = await this.subscriptionService.getEvents(id!, page, limit);
+    res.status(200).json(formatSuccess(result));
+  };
+
+  deleteSubscription: RequestHandler = async (req, res) => {
+    const userId = (req as any).user!.id;
+    const { id } = req.params;
+    await this.subscriptionService.deleteSubscription(userId, id!);
+    res.status(200).json(formatSuccess(null, "Subscription deleted"));
+  };
 }

@@ -16,6 +16,8 @@ export const createSubscriptionRouter = (
     controller.addSubscription
   );
   router.get("/", authenticate, controller.listSubscriptions);
+  router.get("/:id/events", authenticate, controller.getEvents);
+  router.delete("/:id", authenticate, controller.deleteSubscription);
 
   return router;
 };

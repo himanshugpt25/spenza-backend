@@ -1,5 +1,7 @@
 import "express-async-errors";
 import express, { Application } from "express";
+import cors from "cors";
+import cookieParser from "cookie-parser";
 import { AuthController } from "./modules/auth/auth.controller";
 import { SubscriptionController } from "./modules/subscription/sub.controller";
 import { WebhookController } from "./modules/webhook/webhook.controller";
@@ -8,6 +10,7 @@ import { createSubscriptionRouter } from "./modules/subscription/sub.routes";
 import { createWebhookRouter } from "./modules/webhook/webhook.routes";
 import { errorHandler } from "./shared/middleware/errorHandler";
 import { logger } from "./shared/utils/logger";
+import { config } from "./config/config";
 
 export class App {
   private readonly app: Application;
@@ -15,7 +18,7 @@ export class App {
   constructor(
     private readonly authController: AuthController,
     private readonly subscriptionController: SubscriptionController,
-    private readonly webhookController: WebhookController,
+    private readonly webhookController: WebhookController
   ) {
     this.app = express();
     this.configureMiddleware();
@@ -24,6 +27,13 @@ export class App {
   }
 
   private configureMiddleware() {
+    this.app.use(
+      cors({
+        origin: config.CORS_ORIGIN,
+        credentials: true,
+      })
+    );
+    this.app.use(cookieParser());
     this.app.use(express.json({ limit: "1mb" }));
   }
 
@@ -32,9 +42,12 @@ export class App {
     this.app.use("/api/v1/auth", createAuthRouter(this.authController));
     this.app.use(
       "/api/v1/subscriptions",
-      createSubscriptionRouter(this.subscriptionController),
+      createSubscriptionRouter(this.subscriptionController)
     );
-    this.app.use("/api/v1/webhooks", createWebhookRouter(this.webhookController));
+    this.app.use(
+      "/api/v1/webhooks",
+      createWebhookRouter(this.webhookController)
+    );
   }
 
   private configureErrorHandling() {
@@ -51,4 +64,3 @@ export class App {
     return this.app;
   }
 }
-

@@ -16,6 +16,7 @@ const envSchema = z.object({
   JWT_REFRESH_EXPIRES_IN: z.string().default("7d"),
   WEBHOOK_RETRY_TTL_MS: z.coerce.number().int().positive().default(5000),
   WEBHOOK_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),
+  CORS_ORIGIN: z.string().default("http://localhost:5173"),
 });
 
 const env = envSchema.parse(process.env);

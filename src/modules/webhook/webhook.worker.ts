@@ -107,7 +107,7 @@ export class WebhookWorker {
         null
       );
       channel.ack(message);
-    } catch (error) {
+    } catch (error: any) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown delivery error";
       const hasAttemptsRemaining = nextAttempt < config.WEBHOOK_MAX_ATTEMPTS;

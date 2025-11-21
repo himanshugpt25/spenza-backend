@@ -14,6 +14,7 @@ export interface SubscriptionRecord {
     description?: string;
   };
   created_at: Date;
+  deleted_at: Date | null;
 }
 
 export interface CreateSubscriptionInput {
@@ -28,6 +29,7 @@ export interface ISubscriptionRepository {
   create(payload: CreateSubscriptionInput): Promise<SubscriptionRecord>;
   findByUser(userId: string): Promise<SubscriptionRecord[]>;
   findById(id: string): Promise<SubscriptionRecord | null>;
+  softDelete(id: string): Promise<void>;
 }
 
 export class SubscriptionRepository
@@ -62,9 +64,9 @@ export class SubscriptionRepository
 
   async findByUser(userId: string): Promise<SubscriptionRecord[]> {
     const query = `
-      SELECT id, user_id, target_url, is_active, metadata, created_at
+      SELECT id, user_id, target_url, is_active, metadata, created_at, deleted_at
       FROM subscriptions
-      WHERE user_id = $1
+      WHERE user_id = $1 AND deleted_at IS NULL
       ORDER BY created_at DESC;
     `;
     const result: QueryResult<SubscriptionRecord> = await this.query(query, [
@@ -75,14 +77,23 @@ export class SubscriptionRepository
 
   async findById(id: string): Promise<SubscriptionRecord | null> {
     const query = `
-      SELECT id, user_id, target_url, is_active, metadata, created_at
+      SELECT id, user_id, target_url, is_active, metadata, created_at, deleted_at
       FROM subscriptions
-      WHERE id = $1
+      WHERE id = $1 AND deleted_at IS NULL
       LIMIT 1;
     `;
     const result: QueryResult<SubscriptionRecord> = await this.query(query, [
       id,
     ]);
     return result.rows[0] ?? null;
+  }
+
+  async softDelete(id: string): Promise<void> {
+    const query = `
+      UPDATE subscriptions
+      SET deleted_at = NOW()
+      WHERE id = $1;
+    `;
+    await this.query(query, [id]);
   }
 }

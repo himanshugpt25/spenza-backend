@@ -19,6 +19,7 @@ export interface CreateUserInput {
 export interface IUserRepository {
   create(payload: CreateUserInput): Promise<UserRecord>;
   findByEmail(email: string): Promise<UserRecord | null>;
+  findById(id: string): Promise<UserRecord | null>;
   updateRefreshTokenHash(
     userId: string,
     refreshTokenHash: string
@@ -56,6 +57,17 @@ export class UserRepository extends BaseRepository implements IUserRepository {
       LIMIT 1;
     `;
     const result: QueryResult<UserRecord> = await this.query(query, [email]);
+    return result.rows[0] ?? null;
+  }
+
+  async findById(id: string): Promise<UserRecord | null> {
+    const query = `
+      SELECT id, email, password_hash, refresh_token_hash, created_at
+      FROM users
+      WHERE id = $1
+      LIMIT 1;
+    `;
+    const result: QueryResult<UserRecord> = await this.query(query, [id]);
     return result.rows[0] ?? null;
   }
 

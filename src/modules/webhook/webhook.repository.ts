@@ -29,6 +29,11 @@ export interface IWebhookRepository {
     lastError?: string | null
   ): Promise<void>;
   findById(eventId: string): Promise<WebhookEventRecord | null>;
+  getEventsBySubscriptionId(
+    subscriptionId: string,
+    limit: number,
+    offset: number
+  ): Promise<{ events: WebhookEventRecord[]; total: number }>;
 }
 
 export class WebhookRepository
@@ -94,6 +99,35 @@ export class WebhookRepository
     ]);
     const event = result.rows[0];
     return event ? this.mapPayload(event) : null;
+  }
+
+  async getEventsBySubscriptionId(
+    subscriptionId: string,
+    limit: number,
+    offset: number
+  ): Promise<{ events: WebhookEventRecord[]; total: number }> {
+    const query = `
+      SELECT id, subscription_id, payload, status, attempt_count, last_error, created_at, updated_at
+      FROM events
+      WHERE subscription_id = $1
+      ORDER BY created_at DESC
+      LIMIT $2 OFFSET $3;
+    `;
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM events
+      WHERE subscription_id = $1;
+    `;
+
+    const [eventsResult, countResult] = await Promise.all([
+      this.query(query, [subscriptionId, limit, offset]),
+      this.query(countQuery, [subscriptionId]),
+    ]);
+
+    const events = eventsResult.rows.map((row) => this.mapPayload(row as any));
+    const total = parseInt(countResult.rows[0]?.total || "0", 10);
+
+    return { events, total };
   }
 
   private mapPayload(record: WebhookEventRecord): WebhookEventRecord {

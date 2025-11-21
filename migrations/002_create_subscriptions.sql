@@ -4,5 +4,6 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   target_url TEXT NOT NULL,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  deleted_at TIMESTAMPTZ DEFAULT NULL
 );

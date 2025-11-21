@@ -5,14 +5,18 @@ import { AuthenticatedRequest } from "../types/express";
 
 export const authenticate: RequestHandler = (req, _res, next: NextFunction) => {
   const authorization = req.headers.authorization;
-  if (!authorization?.startsWith("Bearer ")) {
-    throw new AppError("Missing or invalid authorization header", 401);
+  let token: string | undefined;
+
+  if (authorization?.startsWith("Bearer ")) {
+    token = authorization.split(" ")[1];
+  } else if (req.cookies?.["spenza-accessToken"]) {
+    token = req.cookies["spenza-accessToken"];
   }
 
-  const token = authorization.split(" ")[1];
   if (!token) {
     throw new AppError("Missing bearer token", 401);
   }
+
   try {
     const payload = tokenManager.verifyAccessToken(token);
     (req as AuthenticatedRequest).user = { id: payload.sub };
