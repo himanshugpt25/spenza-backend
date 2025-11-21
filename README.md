@@ -43,11 +43,11 @@ NODE_ENV=development
 PORT=3000
 
 # Database
-DATABASE_URL=postgres://backend:backend@localhost:5433/spenza
+DATABASE_URL=postgres://spenza:spenza@localhost:5433/spenza
 MIGRATION_DATABASE_URL=postgres://spenza:spenza@localhost:5433/spenza
 
 # RabbitMQ
-RABBITMQ_URL=amqp://guest:guest@localhost:5672
+RABBITMQ_URL=amqp://spenza:spenza@localhost:5672
 
 # JWT Secrets (Change these in production!)
 JWT_SECRET=your-super-secret-jwt-key-change-this
